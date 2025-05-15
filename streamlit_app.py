@@ -4,102 +4,74 @@ import cv2
 from plate_recognition import recognize_plate
 from PIL import Image
 import pandas as pd
-import datetime
+from datetime import datetime
 
-st.set_page_config(
-    page_title="Control de Acceso + Dashboard",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# Inicializa la sesión
+if 'events' not in st.session_state:
+    st.session_state.events = []  # lista de dicts
 
-# --- Configuración general ---
 AUTHORIZED = {"CKN364", "MXL931"}
 
-# Inicializa en session_state el DataFrame de eventos
-if "events" not in st.session_state:
-    st.session_state.events = pd.DataFrame(
-        columns=["timestamp", "placa", "resultado"]
-    )
-
-# Función principal de proceso
-def process_plate(img: np.ndarray):
+def process_plate(img):
+    """Reconoce placa y devuelve (placa, allowed:bool)."""
     plate = recognize_plate(img)
-    if not plate:
-        resultado = "no_detectada"
-    elif plate in AUTHORIZED:
-        resultado = "autorizada"
-    else:
-        resultado = "denegada"
+    allowed = (plate in AUTHORIZED)
+    # Guardamos el evento
+    st.session_state.events.append({
+        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        'placa': plate or 'N/A',
+        'allowed': '✅' if allowed else '⛔'
+    })
+    return plate, allowed
 
-    # Guardamos evento
-    st.session_state.events = st.session_state.events.append({
-        "timestamp": datetime.datetime.now(),
-        "placa": plate or "N/A",
-        "resultado": resultado
-    }, ignore_index=True)
+# Sidebar de navegación
+st.sidebar.title("🔎 Navegación")
+page = st.sidebar.selectbox("", ["Control de Acceso", "Dashboard"])
 
-    return plate, resultado
-
-# --- Sidebar de navegación ---
-page = st.sidebar.selectbox("🔍 Navegación", ["Control de Acceso","Tablero Inteligente"])
-
-# --- Página 1: Control de Acceso ---
 if page == "Control de Acceso":
     st.title("🔒 Control de Acceso Vehicular")
-    st.markdown("""
-    Sube o captura la placa, se reconoce y se decide si entra o no.
-    """)
-    uploaded_file = st.file_uploader("📷 Imagen de la placa", type=["jpg","jpeg","png"])
+
+    uploaded_file = st.file_uploader("Sube la foto de la placa...", type=["jpg","jpeg","png"])
     use_camera = st.checkbox("Usar cámara")
 
-    img = None
+    def run_check(img):
+        st.image(img, use_container_width=True)
+        placa, allowed = process_plate(img)
+        if not placa:
+            st.error("❌ No se detectó ninguna placa.")
+        else:
+            st.write(f"**Placa reconocida:** `{placa}`")
+            if allowed:
+                st.success("✅ Acceso autorizado.")
+            else:
+                st.error("⛔ Acceso denegado.")
+
     if use_camera:
-        pic = st.camera_input("Toma la foto")
+        pic = st.camera_input("Toma una foto")
         if pic:
             data = np.asarray(bytearray(pic.read()), dtype=np.uint8)
             img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+            run_check(img)
     elif uploaded_file:
         img_pil = Image.open(uploaded_file).convert("RGB")
         img = np.array(img_pil)[:, :, ::-1]
+        run_check(img)
 
-    if img is not None:
-        st.image(img, use_container_width=True, caption="Procesando...")
-        placa, resultado = process_plate(img)
-
-        if resultado == "no_detectada":
-            st.error("❌ No se detectó ninguna placa.")
-        elif resultado == "autorizada":
-            st.success(f"✅ Placa **{placa}** autorizada. ¡Bienvenido!")
-        else:
-            st.error(f"⛔ Placa **{placa}** denegada.")
-        
-# --- Página 2: Tablero Inteligente ---
-else:
-    st.title("📊 Tablero Inteligente de Accesos")
-    df = st.session_state.events
-
-    if df.empty:
-        st.info("Aún no hay registros de escaneos. Ve a 'Control de Acceso' para probar.")
+elif page == "Dashboard":
+    st.title("📊 Dashboard de Eventos")
+    if not st.session_state.events:
+        st.info("Aún no se ha procesado ninguna placa.")
     else:
-        # Métricas del día
-        hoy = df["timestamp"].dt.date == datetime.datetime.now().date()
-        total_hoy = hoy.sum()
-        auth_hoy = ((df["resultado"]=="autorizada") & hoy).sum()
-        den_hoy  = ((df["resultado"]=="denegada") & hoy).sum()
-
+        df = pd.DataFrame(st.session_state.events)
+        # Estadísticas simples
+        total = len(df)
+        ok = (df['allowed'] == '✅').sum()
+        no = total - ok
         col1, col2, col3 = st.columns(3)
-        col1.metric("🕒 Escaneos hoy", total_hoy)
-        col2.metric("✅ Autorizados", auth_hoy)
-        col3.metric("⛔ Denegados", den_hoy)
+        col1.metric("Total lecturas", total)
+        col2.metric("Autorizados", ok)
+        col3.metric("Denegados", no)
 
         st.markdown("---")
-        st.subheader("🗒️ Registro completo")
-        # Mostrar tabla con paginación
-        st.dataframe(
-            df.sort_values("timestamp", ascending=False)
-              .assign(
-                  timestamp=lambda d: d["timestamp"].dt.strftime("%Y-%m-%d %H:%M:%S")
-              ),
-            use_container_width=True,
-            height=400
-        )
+        st.subheader("🔍 Log de intentos")
+        st.dataframe(df, use_container_width=True)
