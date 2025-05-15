@@ -6,22 +6,28 @@ from PIL import Image
 import pandas as pd
 from datetime import datetime
 
-# Inicializa la sesión
+# 1) Inicializa events como LISTA (solo la primera vez)
 if 'events' not in st.session_state:
-    st.session_state.events = []  # lista de dicts
+    st.session_state.events = []  # <-- aquí debe ser lista, nunca DataFrame
 
+# Placas autorizadas
 AUTHORIZED = {"CKN364", "MXL931"}
 
 def process_plate(img):
-    """Reconoce placa y devuelve (placa, allowed:bool)."""
+    """
+    Reconoce placa y devuelve (placa, allowed:bool).
+    Además agrega el evento a la lista de la sesión.
+    """
     plate = recognize_plate(img)
     allowed = (plate in AUTHORIZED)
-    # Guardamos el evento
+
+    # 2) Append en la LISTA; muta la propia lista
     st.session_state.events.append({
         'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         'placa': plate or 'N/A',
         'allowed': '✅' if allowed else '⛔'
     })
+
     return plate, allowed
 
 # Sidebar de navegación
@@ -37,7 +43,7 @@ if page == "Control de Acceso":
     def run_check(img):
         st.image(img, use_container_width=True)
         placa, allowed = process_plate(img)
-        if not placa:
+        if not placa or placa == 'N/A':
             st.error("❌ No se detectó ninguna placa.")
         else:
             st.write(f"**Placa reconocida:** `{placa}`")
@@ -59,14 +65,17 @@ if page == "Control de Acceso":
 
 elif page == "Dashboard":
     st.title("📊 Dashboard de Eventos")
+
     if not st.session_state.events:
         st.info("Aún no se ha procesado ninguna placa.")
     else:
+        # 3) Convertimos la LISTA en DataFrame solo para mostrar
         df = pd.DataFrame(st.session_state.events)
-        # Estadísticas simples
+
         total = len(df)
         ok = (df['allowed'] == '✅').sum()
         no = total - ok
+
         col1, col2, col3 = st.columns(3)
         col1.metric("Total lecturas", total)
         col2.metric("Autorizados", ok)
