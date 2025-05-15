@@ -4,3 +4,4 @@ easyocr
 numpy
 Pillow
 paho-mqtt
+streamlit-drawable-canvas
