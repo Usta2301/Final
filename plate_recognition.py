@@ -9,10 +9,10 @@ reader = easyocr.Reader(['es', 'en'])
 def recognize_plate(image: np.ndarray) -> str:
     """
     Detecta y reconoce la matrícula en una imagen.
-    Devuelve solo letras y números (sin provincia/ciudad).
-    Si no encuentra placa, devuelve cadena vacía.
+    Devuelve sólo el patrón LLLDDD (3 letras + 3 dígitos).
+    Si no encuentra nada, devuelve cadena vacía.
     """
-    # --- detección de contorno de placa (igual que antes) ---
+    # --- Detección de contorno de placa (igual que antes) ---
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     filtered = cv2.bilateralFilter(gray, 11, 17, 17)
     edged = cv2.Canny(filtered, 30, 200)
@@ -32,9 +32,11 @@ def recognize_plate(image: np.ndarray) -> str:
     if plate_img is None:
         return ""
 
-    # OCR
+    # OCR y limpieza básica
     result = reader.readtext(plate_img, detail=0)
     raw = "".join(result)
-    # Quedarnos solo con A–Z y 0–9, en mayúsculas
     cleaned = re.sub(r'[^A-Za-z0-9]', '', raw).upper()
-    return cleaned
+
+    # Extraer primer match de 3 letras + 3 dígitos
+    m = re.search(r'([A-Z]{3}\d{3})', cleaned)
+    return m.group(1) if m else ""
