@@ -8,3 +8,4 @@ Este proyecto te permite subir o capturar una imagen de una matrícula de vehíc
    ```bash
    git clone https://github.com/tu-usuario/license-plate-recognition.git
    cd license-plate-recognition
+🔗 Puedes acceder a la aplicación aquí: [Ir al tablero](https://tablero-placas-dqpmhbjpyhtatwghvwfizs.streamlit.app)
