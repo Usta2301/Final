@@ -1,42 +1,43 @@
-import cv2
+import streamlit as st
 import numpy as np
-import easyocr
-import re
+import cv2
+from plate_recognition import recognize_plate
+from PIL import Image
 
-# Inicializa el lector de EasyOCR (idioma español e inglés)
-reader = easyocr.Reader(['es', 'en'])
+st.set_page_config(page_title="Control de Acceso – Unidad Residencial", layout="centered")
+st.title("🔒 Control de Acceso Vehicular")
 
-def recognize_plate(image: np.ndarray) -> str:
-    """
-    Detecta y reconoce la matrícula en una imagen.
-    Devuelve sólo el patrón LLLDDD (3 letras + 3 dígitos).
-    Si no encuentra nada, devuelve cadena vacía.
-    """
-    # --- Detección de contorno de placa (igual que antes) ---
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    filtered = cv2.bilateralFilter(gray, 11, 17, 17)
-    edged = cv2.Canny(filtered, 30, 200)
+st.markdown("""
+_En esta simulación sólo se permitirá el paso a dos placas autorizadas._  
+> **Autorizadas:** `CKN364`, `MXL931`
+""")
 
-    cnts, _ = cv2.findContours(edged.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    cnts = sorted(cnts, key=cv2.contourArea, reverse=True)[:10]
+# Lista de placas permitidas
+AUTHORIZED = {"CKN364", "MXL931"}
 
-    plate_img = None
-    for cnt in cnts:
-        peri = cv2.arcLength(cnt, True)
-        approx = cv2.approxPolyDP(cnt, 0.018 * peri, True)
-        if len(approx) == 4:
-            x, y, w, h = cv2.boundingRect(approx)
-            plate_img = image[y:y + h, x:x + w]
-            break
+uploaded_file = st.file_uploader("Sube la foto de la placa...", type=["jpg", "jpeg", "png"])
+use_camera = st.checkbox("Usar cámara")
 
-    if plate_img is None:
-        return ""
+def process_and_display(img):
+    st.image(img, caption="Procesando imagen...", use_column_width=True)
+    plate = recognize_plate(img)
+    if not plate:
+        st.error("❌ No se detectó ninguna placa.")
+        return
 
-    # OCR y limpieza básica
-    result = reader.readtext(plate_img, detail=0)
-    raw = "".join(result)
-    cleaned = re.sub(r'[^A-Za-z0-9]', '', raw).upper()
+    st.write(f"**Placa reconocida:** `{plate}`")
+    if plate in AUTHORIZED:
+        st.success("✅ Acceso autorizado. ¡Bienvenido!")
+    else:
+        st.error("⛔ Acceso denegado.")
 
-    # Extraer primer match de 3 letras + 3 dígitos
-    m = re.search(r'([A-Z]{3}\d{3})', cleaned)
-    return m.group(1) if m else ""
+if use_camera:
+    pic = st.camera_input("Toma una foto")
+    if pic:
+        data = np.asarray(bytearray(pic.read()), dtype=np.uint8)
+        img = cv2.imdecode(data, cv2.IMREAD_COLOR)
+        process_and_display(img)
+elif uploaded_file:
+    img_pil = Image.open(uploaded_file).convert("RGB")
+    img = np.array(img_pil)[:, :, ::-1]  # RGB → BGR
+    process_and_display(img)
