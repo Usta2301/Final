@@ -1,107 +1,42 @@
-import streamlit as st
-import numpy as np
 import cv2
-from plate_recognition import recognize_plate
-from PIL import Image
-import pandas as pd
-from datetime import datetime
+import numpy as np
+import easyocr
+import re
 
-# Nuevo import:
-from streamlit_drawable_canvas import st_canvas
+# Inicializa el lector de EasyOCR (idioma español e inglés)
+reader = easyocr.Reader(['es', 'en'])
 
-# Aseguramos que events sea siempre lista
-if 'events' not in st.session_state or not isinstance(st.session_state.events, list):
-    st.session_state.events = []
+def recognize_plate(image: np.ndarray) -> str:
+    """
+    Detecta y reconoce la matrícula en una imagen.
+    Devuelve sólo el patrón LLLDDD (3 letras + 3 dígitos).
+    Si no encuentra nada, devuelve cadena vacía.
+    """
+    # --- Detección de contorno de placa (igual que antes) ---
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    filtered = cv2.bilateralFilter(gray, 11, 17, 17)
+    edged = cv2.Canny(filtered, 30, 200)
 
-AUTHORIZED = {"CKN364", "MXL931"}
+    cnts, _ = cv2.findContours(edged.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    cnts = sorted(cnts, key=cv2.contourArea, reverse=True)[:10]
 
-def process_plate(img: np.ndarray):
-    plate = recognize_plate(img)
-    allowed = (plate in AUTHORIZED)
-    st.session_state.events.append({
-        'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        'placa': plate or 'N/A',
-        'allowed': '✅' if allowed else '⛔'
-    })
-    return plate, allowed
+    plate_img = None
+    for cnt in cnts:
+        peri = cv2.arcLength(cnt, True)
+        approx = cv2.approxPolyDP(cnt, 0.018 * peri, True)
+        if len(approx) == 4:
+            x, y, w, h = cv2.boundingRect(approx)
+            plate_img = image[y:y + h, x:x + w]
+            break
 
-st.sidebar.title("🔎 Navegación")
-page = st.sidebar.selectbox("", ["Control de Acceso", "Dashboard"])
+    if plate_img is None:
+        return ""
 
-if page == "Control de Acceso":
-    st.title("🔒 Control de Acceso Vehicular")
+    # OCR y limpieza básica
+    result = reader.readtext(plate_img, detail=0)
+    raw = "".join(result)
+    cleaned = re.sub(r'[^A-Za-z0-9]', '', raw).upper()
 
-    # Creamos dos pestañas: subir imagen vs dibujar placa
-    tab1, tab2 = st.tabs(["📷 Subir / Cámara", "✏️ Dibujar Placa"])
-
-    with tab1:
-        uploaded_file = st.file_uploader("Sube la foto de la placa...", type=["jpg","jpeg","png"])
-        use_camera   = st.checkbox("Usar cámara")
-        if use_camera:
-            pic = st.camera_input("Toma una foto")
-            if pic:
-                data = np.asarray(bytearray(pic.read()), dtype=np.uint8)
-                img = cv2.imdecode(data, cv2.IMREAD_COLOR)
-                st.image(img, use_container_width=True)
-                placa, allowed = process_plate(img)
-                if not placa or placa=='N/A':
-                    st.error("❌ No se detectó ninguna placa.")
-                else:
-                    st.write(f"**Placa reconocida:** `{placa}`")
-                    st.success("✅ Acceso autorizado.") if allowed else st.error("⛔ Acceso denegado.")
-        elif uploaded_file:
-            img_pil = Image.open(uploaded_file).convert("RGB")
-            img = np.array(img_pil)[:, :, ::-1]
-            st.image(img, use_container_width=True)
-            placa, allowed = process_plate(img)
-            if not placa or placa=='N/A':
-                st.error("❌ No se detectó ninguna placa.")
-            else:
-                st.write(f"**Placa reconocida:** `{placa}`")
-                st.success("✅ Acceso autorizado.") if allowed else st.error("⛔ Acceso denegado.")
-
-    with tab2:
-        st.markdown("**Dibuja aquí las 3 letras y 3 números de la placa:**")
-        canvas_result = st_canvas(
-            fill_color="rgba(0,0,0,0)",  # transparente
-            stroke_width=10,
-            stroke_color="#000",
-            background_color="#fff",
-            height=200,
-            width=600,
-            drawing_mode="freedraw",
-            key="canvas",
-        )
-        # Cuando el usuario pulse este botón, procesamos lo pintado
-        if st.button("▶️ Procesar dibujo"):
-            if canvas_result.image_data is not None:
-                # canvas_result.image_data es un ndarray RGBA
-                rgba = canvas_result.image_data.astype("uint8")
-                # Convertimos a BGR para OpenCV (descartamos el canal alfa)
-                bgr = cv2.cvtColor(rgba, cv2.COLOR_RGBA2BGR)
-                st.image(bgr, caption="Tu dibujo", use_container_width=True)
-                placa, allowed = process_plate(bgr)
-                if not placa or placa=='N/A':
-                    st.error("❌ No se detectó ninguna placa en el dibujo.")
-                else:
-                    st.write(f"**Placa reconocida:** `{placa}`")
-                    st.success("✅ Acceso autorizado.") if allowed else st.error("⛔ Acceso denegado.")
-            else:
-                st.warning("No hay nada dibujado en el canvas.")
-
-elif page == "Dashboard":
-    st.title("📊 Dashboard de Eventos")
-    if not st.session_state.events:
-        st.info("Aún no se ha procesado ninguna placa.")
-    else:
-        df = pd.DataFrame(st.session_state.events)
-        total = len(df)
-        ok    = (df['allowed']=='✅').sum()
-        no    = total - ok
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Total lecturas", total)
-        c2.metric("Autorizados", ok)
-        c3.metric("Denegados", no)
-        st.markdown("---")
-        st.subheader("🔍 Log de intentos")
-        st.dataframe(df, use_container_width=True)
+    # Extraer primer match de 3 letras + 3 dígitos
+    m = re.search(r'([A-Z]{3}\d{3})', cleaned)
+    return m.group(1) if m else ""
