@@ -41,3 +41,8 @@ elif uploaded_file:
     img_pil = Image.open(uploaded_file).convert("RGB")
     img = np.array(img_pil)[:, :, ::-1]  # RGB → BGR
     process_and_display(img)
+
+# Enlace al tablero en línea
+st.markdown("---")
+st.markdown("🌐 También puedes acceder a esta app desde el siguiente enlace desplegado:")
+st.link_button("Ir a la app desplegada", "https://tablero-placas-dqpmhbjpyhtatwghvwfizs.streamlit.app")
