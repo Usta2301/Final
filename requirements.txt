@@ -7,3 +7,4 @@ paho-mqtt
 streamlit-drawable-canvas
 tensorflow
 streamlit-drawable-canvas
+paho-mqtt
