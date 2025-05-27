@@ -3,6 +3,7 @@ opencv-python-headless
 easyocr
 numpy
 Pillow
+paho-mqtt
 streamlit-drawable-canvas
 tensorflow
 streamlit-drawable-canvas
