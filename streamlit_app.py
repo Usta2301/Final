@@ -1,7 +1,7 @@
 import streamlit as st
 import numpy as np
 import cv2
-#from plate_recognition import recognize_plate
+from plate_recognition import recognize_plate
 from PIL import Image
 import paho.mqtt.client as mqtt
 import json
