@@ -10,8 +10,8 @@ from datetime import datetime
 st.set_page_config(page_title="Control de Acceso – Unidad Residencial", layout="centered")
 st.title("🔒 Control de Acceso Vehicular")
 st.markdown("""
-En esta simulación sólo se permitirá el paso a dos placas autorizadas.  
-> *Autorizadas:* CKN364, MXL931
+*En esta simulación sólo se permitirá el paso a dos placas autorizadas.*  
+> **Autorizadas:** `CKN364`, `MXL931`
 """)
 
 # Lista de placas permitidas
@@ -46,7 +46,7 @@ def publish_to_mqtt(plate, authorized):
         st.info(f"📡 Datos enviados al broker MQTT: {MQTT_BROKER}")
         return True
     except Exception as e:
-        st.warning(f"⚠ Error al enviar datos MQTT: {str(e)}")
+        st.warning(f"⚠️ Error al enviar datos MQTT: {str(e)}")
         return False
 
 uploaded_file = st.file_uploader("Sube la foto de la placa...", type=["jpg", "jpeg", "png"])
@@ -60,7 +60,7 @@ def process_and_display(img):
         st.error("❌ No se detectó ninguna placa.")
         return
     
-    st.write(f"*Placa reconocida:* {plate}")
+    st.write(f"**Placa reconocida:** `{plate}`")
     
     if plate in AUTHORIZED:
         st.success("✅ Acceso autorizado. ¡Bienvenido!")
@@ -86,19 +86,19 @@ elif uploaded_file:
 st.markdown("---")
 st.markdown("### 📡 Configuración MQTT")
 st.info(f"""
-*Broker:* {MQTT_BROKER}  
-*Puerto:* {MQTT_PORT}  
-*Tópico:* {MQTT_TOPIC}  
+**Broker:** {MQTT_BROKER}  
+**Puerto:** {MQTT_PORT}  
+**Tópico:** {MQTT_TOPIC}  
 
 Los datos se envían en formato JSON con la siguiente estructura:
-json
+```json
 {
   "timestamp": "2025-05-27T10:30:00",
   "plate": "CKN364",
   "authorized": true,
   "status": "Acceso autorizado"
 }
-
+```
 """)
 
 # Enlace al tablero en línea
