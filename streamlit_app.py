@@ -45,4 +45,4 @@ elif uploaded_file:
 # Enlace al tablero en línea
 st.markdown("---")
 st.markdown("🌐 También puedes acceder a esta app desde el siguiente enlace desplegado:")
-st.link_button("Ir a la app desplegada", "https://tablero-placas-dqpmhbjpyhtatwghvwfizs.streamlit.app")
+st.link_button("Ir a la app desplegada", "https://dibujousta.streamlit.app")
