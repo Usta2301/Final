@@ -83,24 +83,6 @@ elif uploaded_file:
     process_and_display(img)
 
 # Información MQTT
-st.markdown("---")
-st.markdown("### 📡 Configuración MQTT")
-st.info(f"""
-**Broker:** {MQTT_BROKER}  
-**Puerto:** {MQTT_PORT}  
-**Tópico:** {MQTT_TOPIC}  
-
-Los datos se envían en formato JSON con la siguiente estructura:
-```json
-{
-  "timestamp": "2025-05-27T10:30:00",
-  "plate": "CKN364",
-  "authorized": true,
-  "status": "Acceso autorizado"
-}
-```
-""")
-
 # Enlace al tablero en línea
 st.markdown("---")
 st.markdown("🌐 También puedes acceder a esta app desde el siguiente enlace desplegado:")
